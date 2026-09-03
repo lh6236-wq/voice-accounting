@@ -4582,7 +4582,7 @@ function tripTab(t) {
     if (tabContent) tabContent.style.display = id === t ? '' : 'none';
     if (tabBtn) tabBtn.classList.toggle('on', id === t);
   });
-  if (t === 'result' || t === 'settle') tripCalcResult();
+  tripCalcResult();
 }
 
 function renderTripMembers() {
@@ -4779,6 +4779,13 @@ function tripAddExpense() {
   const sm = document.getElementById('tripSplitMode');
   if (sm) { sm.value = 'equal'; tripSplitModeChange(); }
   renderTripMain();
+  // 儲存後自動跳到結算 tab 確保立即同步顯示
+  if (tripEditingId === null) {
+    const s2 = tripSessions[tripCurrentIdx];
+    if (s2 && s2.expenses.length > 0 && s2.members.length > 0) {
+      tripTab('result');
+    }
+  }
 }
 
 function tripDeleteExpense(id) {
