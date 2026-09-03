@@ -834,6 +834,16 @@
     .tei-desc { font-size: 14px; font-weight: 700; margin-bottom: 2px; }
     .tei-payer { font-size: 11.5px; color: var(--text-2); }
     .tei-amt { font-size: 16px; font-weight: 800; color: var(--expense); flex-shrink: 0; }
+    .tei-edit { background:none; border:none; color:var(--p1); font-size:16px; cursor:pointer; padding:0 4px; line-height:1; opacity:.7; }
+    .tei-edit:active { opacity:1; }
+    .trip-exp-item.editing { border:2px solid var(--p1); background:rgba(91,94,244,.06); }
+    .trip-editing-banner {
+      display:none; background:rgba(91,94,244,.1); border-radius:12px;
+      padding:8px 14px; margin-bottom:12px; font-size:13px; font-weight:600;
+      color:var(--p1); align-items:center; gap:10px;
+    }
+    .trip-editing-banner.on { display:flex; }
+    .teb-cancel { margin-left:auto; background:none; border:none; font-size:13px; color:var(--expense); cursor:pointer; font-weight:700; font-family:inherit; }
     .tei-del { background: none; border: none; color: #ccc; font-size: 20px; cursor: pointer; padding: 0; line-height:1; }
     .trip-result-card, .trip-settle-card {
       background: var(--card); border-radius: 18px;
@@ -1378,7 +1388,11 @@
               <span class="flbl">各人分攤比例（數字越大份額越多）</span>
               <div id="tripSplitRatioInputs"></div>
             </div>
-            <button class="btn-p" onclick="tripAddExpense()" style="margin-top:14px;">✅ 加入費用</button>
+            <div class="trip-editing-banner" id="tripEditBanner">
+              <span>✏️ 編輯中</span><span id="tripEditBannerDesc" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
+              <button class="teb-cancel" onclick="tripCancelEdit()">✕ 取消</button>
+            </div>
+            <button class="btn-p" id="tripAddBtn" onclick="tripAddExpense()" style="margin-top:14px;">✅ 加入費用</button>
           </div>
         </div>
 
@@ -4631,6 +4645,64 @@ function renderTripPayerSelect() {
   if (prev && s.members.includes(prev)) sel.value = prev;
 }
 
+let tripEditingId = null;
+
+function tripEditExpense(id) {
+  const s = tripSessions[tripCurrentIdx];
+  if (!s) return;
+  const e = s.expenses.find(function(x){ return x.id === id; });
+  if (!e) return;
+  tripEditingId = id;
+  // pre-fill form
+  document.getElementById('tripExpDesc').value = e.desc;
+  document.getElementById('tripExpAmt').value  = e.amt;
+  const payerSel = document.getElementById('tripPayerSel');
+  if (payerSel) payerSel.value = e.payer;
+  document.getElementById('tripCatSel').value  = e.cat;
+  const sm = document.getElementById('tripSplitMode');
+  if (sm) {
+    sm.value = e.splitMode || 'equal';
+    tripSplitModeChange();
+    // restore split member checks
+    if (e.splitMode === 'select' && e.splitMembers) {
+      document.querySelectorAll('#tripSplitMemberChecks input[type=checkbox]').forEach(function(c){
+        c.checked = e.splitMembers.includes(c.value);
+      });
+    }
+    // restore ratio values
+    if (e.splitMode === 'ratio' && e.splitRatios) {
+      document.querySelectorAll('.trip-ratio-inp').forEach(function(inp){
+        if (e.splitRatios[inp.dataset.member] !== undefined) inp.value = e.splitRatios[inp.dataset.member];
+      });
+    }
+  }
+  // show banner + change button text
+  const banner = document.getElementById('tripEditBanner');
+  if (banner) { banner.classList.add('on'); document.getElementById('tripEditBannerDesc').textContent = e.desc; }
+  const addBtn = document.getElementById('tripAddBtn');
+  if (addBtn) addBtn.textContent = '💾 儲存修改';
+  // highlight editing row
+  document.querySelectorAll('.trip-exp-item').forEach(function(el){ el.classList.remove('editing'); });
+  const rows = document.querySelectorAll('.trip-exp-item');
+  rows.forEach(function(el){ if (el.dataset.id == id) el.classList.add('editing'); });
+  // scroll to form
+  const form = document.querySelector('.trip-add-exp');
+  if (form) form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function tripCancelEdit() {
+  tripEditingId = null;
+  document.getElementById('tripExpDesc').value = '';
+  document.getElementById('tripExpAmt').value  = '';
+  const sm = document.getElementById('tripSplitMode');
+  if (sm) { sm.value = 'equal'; tripSplitModeChange(); }
+  const banner = document.getElementById('tripEditBanner');
+  if (banner) banner.classList.remove('on');
+  const addBtn = document.getElementById('tripAddBtn');
+  if (addBtn) addBtn.textContent = '✅ 加入費用';
+  document.querySelectorAll('.trip-exp-item').forEach(function(el){ el.classList.remove('editing'); });
+}
+
 function tripSplitModeChange() {
   const mode = document.getElementById('tripSplitMode').value;
   document.getElementById('tripSplitMembersPanel').style.display = mode === 'select' ? '' : 'none';
@@ -4688,7 +4760,19 @@ function tripAddExpense() {
     });
     if (total <= 0) { alert('請設定至少一人的比例大於 0'); return; }
   }
-  s.expenses.push({ desc:desc, amt:amt, payer:payer, cat:cat, id:Date.now(), splitMode:mode, splitMembers:splitMembers, splitRatios:splitRatios });
+  if (tripEditingId !== null) {
+    const idx = s.expenses.findIndex(function(x){ return x.id === tripEditingId; });
+    if (idx >= 0) {
+      s.expenses[idx] = Object.assign(s.expenses[idx], { desc:desc, amt:amt, payer:payer, cat:cat, splitMode:mode, splitMembers:splitMembers, splitRatios:splitRatios });
+    }
+    tripEditingId = null;
+    const banner = document.getElementById('tripEditBanner');
+    if (banner) banner.classList.remove('on');
+    const addBtn = document.getElementById('tripAddBtn');
+    if (addBtn) addBtn.textContent = '✅ 加入費用';
+  } else {
+    s.expenses.push({ desc:desc, amt:amt, payer:payer, cat:cat, id:Date.now(), splitMode:mode, splitMembers:splitMembers, splitRatios:splitRatios });
+  }
   saveTripSessions();
   document.getElementById('tripExpDesc').value = '';
   document.getElementById('tripExpAmt').value  = '';
@@ -4726,11 +4810,12 @@ function renderTripExpList() {
         .map(function(m){ return m+':'+e.splitRatios[m]; }).join(' / ');
       if (rParts) detail += '　比例 ' + rParts;
     }
-    return '<div class="trip-exp-item">' +
+    return '<div class="trip-exp-item" data-id="' + e.id + '">' +
       '<div class="tei-icon">' + e.cat + '</div>' +
       '<div class="tei-info"><div class="tei-desc">' + e.desc + modeTag + '</div>' +
       '<div class="tei-payer">' + detail + '</div></div>' +
       '<div class="tei-amt">NT$ ' + tripFmt(e.amt) + '</div>' +
+      '<button class="tei-edit" onclick="tripEditExpense(' + e.id + ')" title="編輯">✏️</button>' +
       '<button class="tei-del" onclick="tripDeleteExpense(' + e.id + ')">×</button></div>';
   }).join('');
 }
