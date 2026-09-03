@@ -4762,7 +4762,8 @@ function tripAddExpense() {
     });
     if (total <= 0) { alert('請設定至少一人的比例大於 0'); return; }
   }
-  if (tripEditingId !== null) {
+  const wasEditing = tripEditingId !== null;
+  if (wasEditing) {
     const idx = s.expenses.findIndex(function(x){ return x.id === tripEditingId; });
     if (idx >= 0) {
       s.expenses[idx] = Object.assign(s.expenses[idx], { desc:desc, amt:amt, payer:payer, cat:cat, splitMode:mode, splitMembers:splitMembers, splitRatios:splitRatios });
@@ -4781,7 +4782,12 @@ function tripAddExpense() {
   const sm = document.getElementById('tripSplitMode');
   if (sm) { sm.value = 'equal'; tripSplitModeChange(); }
   renderTripMain();
-  tripCalcResult(); // 每次儲存都確保結算同步
+  if (wasEditing) {
+    tripTab('settle'); // 編輯後切換清償 tab，立即看到更新結果
+  } else {
+    tripCalcResult();
+    tripTab('result'); // 新增後切換結算 tab
+  }
 }
 
 function tripDeleteExpense(id) {
