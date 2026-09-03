@@ -844,6 +844,14 @@
     }
     .trip-editing-banner.on { display:flex; }
     .teb-cancel { margin-left:auto; background:none; border:none; font-size:13px; color:var(--expense); cursor:pointer; font-weight:700; font-family:inherit; }
+    /* 浮動儲存按鈕（手機編輯用） */
+    .trip-float-save {
+      display:none; position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
+      z-index:9999; background:var(--p1); color:#fff; border:none; border-radius:50px;
+      padding:14px 36px; font-size:16px; font-weight:700; font-family:inherit;
+      box-shadow:0 4px 20px rgba(91,94,244,.45); cursor:pointer; white-space:nowrap;
+    }
+    .trip-float-save.on { display:block; }
     .tei-del { background: none; border: none; color: #ccc; font-size: 20px; cursor: pointer; padding: 0; line-height:1; }
     .trip-result-card, .trip-settle-card {
       background: var(--card); border-radius: 18px;
@@ -1394,6 +1402,8 @@
             </div>
             <button class="btn-p" id="tripAddBtn" onclick="tripAddExpense()" style="margin-top:14px;">✅ 加入費用</button>
           </div>
+        <!-- 手機編輯浮動儲存按鈕 -->
+        <button class="trip-float-save" id="tripFloatSave" onclick="tripAddExpense()">💾 儲存修改</button>
         </div>
 
         <div class="trip-section">
@@ -4681,15 +4691,13 @@ function tripEditExpense(id) {
   if (banner) { banner.classList.add('on'); document.getElementById('tripEditBannerDesc').textContent = e.desc; }
   const addBtn = document.getElementById('tripAddBtn');
   if (addBtn) addBtn.textContent = '💾 儲存修改';
+  // 顯示浮動儲存按鈕（手機固定在畫面底部）
+  const floatSave = document.getElementById('tripFloatSave');
+  if (floatSave) floatSave.classList.add('on');
   // highlight editing row
   document.querySelectorAll('.trip-exp-item').forEach(function(el){ el.classList.remove('editing'); });
   const rows = document.querySelectorAll('.trip-exp-item');
   rows.forEach(function(el){ if (el.dataset.id == id) el.classList.add('editing'); });
-  // scroll to button so user sees save button clearly
-  setTimeout(function(){
-    const btn = document.getElementById('tripAddBtn');
-    if (btn) btn.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  }, 100);
 }
 
 function tripCancelEdit() {
@@ -4702,6 +4710,8 @@ function tripCancelEdit() {
   if (banner) banner.classList.remove('on');
   const addBtn = document.getElementById('tripAddBtn');
   if (addBtn) addBtn.textContent = '✅ 加入費用';
+  const floatSave = document.getElementById('tripFloatSave');
+  if (floatSave) floatSave.classList.remove('on');
   document.querySelectorAll('.trip-exp-item').forEach(function(el){ el.classList.remove('editing'); });
 }
 
@@ -4773,6 +4783,8 @@ function tripAddExpense() {
     if (banner) banner.classList.remove('on');
     const addBtn = document.getElementById('tripAddBtn');
     if (addBtn) addBtn.textContent = '✅ 加入費用';
+    const floatSave = document.getElementById('tripFloatSave');
+    if (floatSave) floatSave.classList.remove('on');
   } else {
     s.expenses.push({ desc:desc, amt:amt, payer:payer, cat:cat, id:Date.now(), splitMode:mode, splitMembers:splitMembers, splitRatios:splitRatios });
   }
