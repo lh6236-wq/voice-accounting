@@ -4755,9 +4755,17 @@ function tripAddExpense() {
   const payer = document.getElementById('tripPayerSel').value;
   const cat   = document.getElementById('tripCatSel').value;
   const mode  = (document.getElementById('tripSplitMode') || {value:'equal'}).value;
-  if (!desc)         { alert('請填寫費用說明'); return; }
-  if (!amt || amt<=0){ alert('請填寫正確金額'); return; }
-  if (!payer)        { alert('請先加入成員再新增費用'); return; }
+  if (!desc) {
+    const el = document.getElementById('tripExpDesc');
+    if (el) { el.focus(); el.scrollIntoView({ behavior:'smooth', block:'center' }); el.style.outline='2px solid var(--expense)'; setTimeout(function(){ el.style.outline=''; }, 2000); }
+    return;
+  }
+  if (!amt || amt<=0) {
+    const el = document.getElementById('tripExpAmt');
+    if (el) { el.focus(); el.scrollIntoView({ behavior:'smooth', block:'center' }); el.style.outline='2px solid var(--expense)'; setTimeout(function(){ el.style.outline=''; }, 2000); }
+    return;
+  }
+  if (!payer) { alert('請先加入成員再新增費用'); return; }
   let splitMembers = null, splitRatios = null;
   if (mode === 'select') {
     const chks = document.querySelectorAll('#tripSplitMemberChecks input[type=checkbox]:checked');
