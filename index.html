@@ -896,6 +896,30 @@
     .tsc-meta { font-size: 11.5px; color: var(--text-2); margin-top: 2px; }
     .tsc-del { background: none; border: none; color: #ccc; font-size: 20px; cursor: pointer; padding: 0; }
 
+    .trip-split-panel { margin-top: 10px; }
+    .trip-split-panel .flbl { display:block; margin-bottom:8px; }
+    .trip-check-grid { display:flex; flex-wrap:wrap; gap:8px; }
+    .trip-check-label {
+      display:flex; align-items:center; gap:6px;
+      background:var(--bg); border:1.5px solid var(--border);
+      border-radius:20px; padding:7px 14px; font-size:13px; font-weight:600;
+      cursor:pointer; user-select:none; transition:border-color .15s, background .15s;
+    }
+    .trip-check-label input[type=checkbox] { width:15px; height:15px; accent-color:var(--p1); cursor:pointer; }
+    .trip-ratio-row { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+    .trip-ratio-name { flex:1; font-size:14px; font-weight:700; }
+    .trip-ratio-inp {
+      width:64px; padding:8px 10px; border-radius:10px;
+      border:1.5px solid var(--border); background:var(--bg);
+      color:var(--text); font-size:15px; text-align:center;
+      font-family:inherit; outline:none;
+    }
+    .trip-ratio-inp:focus { border-color:var(--p1); }
+    .trip-split-tag {
+      display:inline-block; font-size:10px; font-weight:700;
+      padding:2px 7px; border-radius:8px; margin-left:6px; vertical-align:middle;
+      background:rgba(91,94,244,.12); color:var(--p1);
+    }
   </style>
 </head>
 <body>
@@ -1335,6 +1359,24 @@
                 <option value="💊">💊 醫藥</option>
                 <option value="📷">📷 其他</option>
               </select>
+            </div>
+            <div class="fg">
+              <span class="flbl">分攤方式</span>
+              <select class="payer-select" id="tripSplitMode" onchange="tripSplitModeChange()">
+                <option value="equal">🟰 平均分攤（全體成員）</option>
+                <option value="select">👥 指定成員分攤</option>
+                <option value="ratio">⚖️ 依比例分攤</option>
+              </select>
+            </div>
+            <!-- 指定成員 panel -->
+            <div class="trip-split-panel" id="tripSplitMembersPanel" style="display:none;">
+              <span class="flbl">選擇參與分攤的成員</span>
+              <div class="trip-check-grid" id="tripSplitMemberChecks"></div>
+            </div>
+            <!-- 比例分攤 panel -->
+            <div class="trip-split-panel" id="tripSplitRatioPanel" style="display:none;">
+              <span class="flbl">各人分攤比例（數字越大份額越多）</span>
+              <div id="tripSplitRatioInputs"></div>
             </div>
             <button class="btn-p" onclick="tripAddExpense()" style="margin-top:14px;">✅ 加入費用</button>
           </div>
@@ -4512,7 +4554,7 @@ function renderTripMain() {
   const n = s.members.length;
   const perHead = n > 0 ? Math.round(total / n) : 0;
   document.getElementById('tripTotalSub').textContent =
-    s.expenses.length + ' \u7B46\u8CBB\u7528 \u00B7 ' + n + ' \u4EBA\u5747\u651E \u00B7 \u6BCF\u4EBA NT$ ' + tripFmt(perHead);
+    s.expenses.length + ' 筆費用 · ' + n + ' 位成員';
   renderTripMembers();
   renderTripPayerSelect();
   renderTripExpList();
@@ -4555,6 +4597,9 @@ function tripAddMember() {
   inp.value = '';
   renderTripMembers();
   renderTripPayerSelect();
+  const sm = document.getElementById('tripSplitMode');
+  if (sm && sm.value === 'select') tripUpdateSplitMemberChecks();
+  if (sm && sm.value === 'ratio')  tripUpdateSplitRatioInputs();
   renderTripMain();
 }
 
@@ -4586,19 +4631,69 @@ function renderTripPayerSelect() {
   if (prev && s.members.includes(prev)) sel.value = prev;
 }
 
+function tripSplitModeChange() {
+  const mode = document.getElementById('tripSplitMode').value;
+  document.getElementById('tripSplitMembersPanel').style.display = mode === 'select' ? '' : 'none';
+  document.getElementById('tripSplitRatioPanel').style.display   = mode === 'ratio'  ? '' : 'none';
+  if (mode === 'select') tripUpdateSplitMemberChecks();
+  if (mode === 'ratio')  tripUpdateSplitRatioInputs();
+}
+
+function tripUpdateSplitMemberChecks() {
+  const s = tripSessions[tripCurrentIdx];
+  const el = document.getElementById('tripSplitMemberChecks');
+  if (!el || !s) return;
+  const prev = Array.from(el.querySelectorAll('input:checked')).map(function(c){ return c.value; });
+  el.innerHTML = s.members.map(function(m) {
+    const chk = prev.length === 0 || prev.includes(m) ? 'checked' : '';
+    return '<label class="trip-check-label"><input type="checkbox" value="' + m + '" ' + chk + '> ' + m + '</label>';
+  }).join('');
+}
+
+function tripUpdateSplitRatioInputs() {
+  const s = tripSessions[tripCurrentIdx];
+  const el = document.getElementById('tripSplitRatioInputs');
+  if (!el || !s) return;
+  const existing = {};
+  el.querySelectorAll('.trip-ratio-inp').forEach(function(inp){ existing[inp.dataset.member] = inp.value; });
+  el.innerHTML = s.members.map(function(m) {
+    const val = existing[m] !== undefined ? existing[m] : '1';
+    return '<div class="trip-ratio-row">' +
+      '<div class="trip-ratio-name">' + m + '</div>' +
+      '<input class="trip-ratio-inp" type="number" min="0" step="0.1" value="' + val + '" data-member="' + m + '" inputmode="decimal"> <span style="font-size:12px;color:var(--text-2)">份</span></div>';
+  }).join('');
+}
+
 function tripAddExpense() {
   const s = tripSessions[tripCurrentIdx];
   const desc  = document.getElementById('tripExpDesc').value.trim();
   const amt   = parseFloat(document.getElementById('tripExpAmt').value);
   const payer = document.getElementById('tripPayerSel').value;
   const cat   = document.getElementById('tripCatSel').value;
-  if (!desc)         { alert('\u8ACB\u586B\u5BEB\u8CBB\u7528\u8AAA\u660E'); return; }
-  if (!amt || amt<=0){ alert('\u8ACB\u586B\u5BEB\u6B63\u78BA\u91D1\u984D'); return; }
-  if (!payer)        { alert('\u8ACB\u5148\u52A0\u5165\u6210\u54E1\u518D\u65B0\u589E\u8CBB\u7528'); return; }
-  s.expenses.push({ desc: desc, amt: amt, payer: payer, cat: cat, id: Date.now() });
+  const mode  = (document.getElementById('tripSplitMode') || {value:'equal'}).value;
+  if (!desc)         { alert('請填寫費用說明'); return; }
+  if (!amt || amt<=0){ alert('請填寫正確金額'); return; }
+  if (!payer)        { alert('請先加入成員再新增費用'); return; }
+  let splitMembers = null, splitRatios = null;
+  if (mode === 'select') {
+    const chks = document.querySelectorAll('#tripSplitMemberChecks input[type=checkbox]:checked');
+    splitMembers = Array.from(chks).map(function(c){ return c.value; });
+    if (splitMembers.length === 0) { alert('請至少勾選一位分攤成員'); return; }
+  } else if (mode === 'ratio') {
+    splitRatios = {};
+    let total = 0;
+    s.members.forEach(function(m) {
+      const v = parseFloat((document.querySelector('.trip-ratio-inp[data-member="' + m + '"]') || {value:'0'}).value) || 0;
+      splitRatios[m] = v; total += v;
+    });
+    if (total <= 0) { alert('請設定至少一人的比例大於 0'); return; }
+  }
+  s.expenses.push({ desc:desc, amt:amt, payer:payer, cat:cat, id:Date.now(), splitMode:mode, splitMembers:splitMembers, splitRatios:splitRatios });
   saveTripSessions();
   document.getElementById('tripExpDesc').value = '';
   document.getElementById('tripExpAmt').value  = '';
+  const sm = document.getElementById('tripSplitMode');
+  if (sm) { sm.value = 'equal'; tripSplitModeChange(); }
   renderTripMain();
 }
 
@@ -4619,14 +4714,52 @@ function renderTripExpList() {
     el.innerHTML = '<div class="trip-empty"><div class="tei">\uD83E\uDDFE</div><p>\u5C1A\u7121\u8CBB\u7528\u8A18\u9304</p></div>';
     return;
   }
+  const splitLabels = { equal:'平均', select:'指定', ratio:'比例' };
   el.innerHTML = s.expenses.slice().reverse().map(function(e) {
+    const modeTag = (e.splitMode && e.splitMode !== 'equal')
+      ? '<span class="trip-split-tag">' + (splitLabels[e.splitMode]||e.splitMode) + '</span>' : '';
+    let detail = '由 <b>' + e.payer + '</b> 先行支付';
+    if (e.splitMode === 'select' && e.splitMembers && e.splitMembers.length > 0) {
+      detail += '　僅 ' + e.splitMembers.join('、') + ' 分攤';
+    } else if (e.splitMode === 'ratio' && e.splitRatios) {
+      const rParts = s.members.filter(function(m){ return (e.splitRatios[m]||0)>0; })
+        .map(function(m){ return m+':'+e.splitRatios[m]; }).join(' / ');
+      if (rParts) detail += '　比例 ' + rParts;
+    }
     return '<div class="trip-exp-item">' +
       '<div class="tei-icon">' + e.cat + '</div>' +
-      '<div class="tei-info"><div class="tei-desc">' + e.desc + '</div>' +
-      '<div class="tei-payer">\u7531 <b>' + e.payer + '</b> \u5148\u884C\u652F\u4ED8</div></div>' +
+      '<div class="tei-info"><div class="tei-desc">' + e.desc + modeTag + '</div>' +
+      '<div class="tei-payer">' + detail + '</div></div>' +
       '<div class="tei-amt">NT$ ' + tripFmt(e.amt) + '</div>' +
-      '<button class="tei-del" onclick="tripDeleteExpense(' + e.id + ')">\u00D7</button></div>';
+      '<button class="tei-del" onclick="tripDeleteExpense(' + e.id + ')">×</button></div>';
   }).join('');
+}
+
+function tripCalcExpenseShare(e, members) {
+  // Returns {member: shareAmt} for this expense based on splitMode
+  const mode = e.splitMode || 'equal';
+  const result = {};
+  members.forEach(function(m){ result[m] = 0; });
+  if (mode === 'equal' || !mode) {
+    const share = e.amt / members.length;
+    members.forEach(function(m){ result[m] = share; });
+  } else if (mode === 'select') {
+    const participants = (e.splitMembers || members).filter(function(m){ return members.includes(m); });
+    const grp = participants.length > 0 ? participants : members;
+    const share = e.amt / grp.length;
+    grp.forEach(function(m){ result[m] = share; });
+  } else if (mode === 'ratio') {
+    const ratios = e.splitRatios || {};
+    let totalR = 0;
+    members.forEach(function(m){ totalR += (ratios[m] || 0); });
+    if (totalR <= 0) {
+      const share = e.amt / members.length;
+      members.forEach(function(m){ result[m] = share; });
+    } else {
+      members.forEach(function(m){ result[m] = e.amt * ((ratios[m] || 0) / totalR); });
+    }
+  }
+  return result;
 }
 
 function tripCalcResult() {
@@ -4634,30 +4767,31 @@ function tripCalcResult() {
   const rc = document.getElementById('tripResultCard');
   const sc = document.getElementById('tripSettleCard');
   if (!s || s.members.length === 0 || s.expenses.length === 0) {
-    if(rc) rc.innerHTML = '<div class="trip-empty"><div class="tei">\uD83D\uDCCA</div><p>\u8ACB\u5148\u52A0\u5165\u6210\u54E1\u4E26\u65B0\u589E\u8CBB\u7528</p></div>';
-    if(sc) sc.innerHTML = '<div class="trip-empty"><div class="tei">\uD83E\uDD1D</div><p>\u8ACB\u5148\u52A0\u5165\u6210\u54E1\u4E26\u65B0\u589E\u8CBB\u7528</p></div>';
+    if(rc) rc.innerHTML = '<div class="trip-empty"><div class="tei">📊</div><p>請先加入成員並新增費用</p></div>';
+    if(sc) sc.innerHTML = '<div class="trip-empty"><div class="tei">🤝</div><p>請先加入成員並新增費用</p></div>';
     return;
   }
-  const n     = s.members.length;
-  const total = s.expenses.reduce(function(a,e){ return a+e.amt; }, 0);
-  const share = total / n;
-  const paid  = {};
-  s.members.forEach(function(m){ paid[m]=0; });
-  s.expenses.forEach(function(e){ if(paid[e.payer]!==undefined) paid[e.payer]+=e.amt; });
+  const paid = {}, owed = {};
+  s.members.forEach(function(m){ paid[m]=0; owed[m]=0; });
+  s.expenses.forEach(function(e){
+    if (paid[e.payer] !== undefined) paid[e.payer] += e.amt;
+    const shares = tripCalcExpenseShare(e, s.members);
+    s.members.forEach(function(m){ owed[m] += shares[m]; });
+  });
   const balance = {};
-  s.members.forEach(function(m){ balance[m]=paid[m]-share; });
+  s.members.forEach(function(m){ balance[m] = paid[m] - owed[m]; });
 
   const colors = ['#5B5EF4','#7C3AED','#9333EA','#E11D48','#059669','#0284C7','#D97706','#64748B'];
   if(rc) rc.innerHTML = s.members.map(function(m,i){
     const b   = balance[m];
     const cls = b>0.5?'recv':b<-0.5?'owe':'even';
-    const lbl = b>0.5?'\u53EF\u6536\u56DE':b<-0.5?'\u9700\u88DC\u7E73':'\u5DF2\u5E73\u8861';
+    const lbl = b>0.5?'可收回':b<-0.5?'需補繳':'已平衡';
     const txt = b>0.5?'+NT$ '+tripFmt(Math.abs(Math.round(b))):
-                b<-0.5?'-NT$ '+tripFmt(Math.abs(Math.round(b))):'\u2713 \u5E73\u5E33';
+                b<-0.5?'-NT$ '+tripFmt(Math.abs(Math.round(b))):'✓ 平帳';
     return '<div class="trip-result-row">' +
       '<div class="trr-avatar" style="background:'+colors[i%colors.length]+'">'+m.charAt(0)+'</div>' +
       '<div class="trr-info"><div class="trr-name">'+m+'</div>' +
-      '<div class="trr-detail">\u5DF2\u4ED8 NT$ '+tripFmt(Math.round(paid[m]))+' \u00B7 \u61C9\u4ED8 NT$ '+tripFmt(Math.round(share))+'</div></div>' +
+      '<div class="trr-detail">已付 NT$ '+tripFmt(Math.round(paid[m]))+' · 應付 NT$ '+tripFmt(Math.round(owed[m]))+'</div></div>' +
       '<div class="trr-amount"><div class="trr-amt-num '+cls+'">'+txt+'</div>' +
       '<div class="trr-amt-lbl">'+lbl+'</div></div></div>';
   }).join('');
@@ -4665,12 +4799,12 @@ function tripCalcResult() {
   const transfers = tripMinimizeTransfers(balance);
   if(sc) {
     if (transfers.length === 0) {
-      sc.innerHTML = '<div class="trip-empty"><div class="tei">\uD83C\uDF89</div><p>\u6240\u6709\u4EBA\u5DF2\u5E73\u5E33\uFF0C\u7121\u9700\u8F49\u5E33\uFF01</p></div>';
+      sc.innerHTML = '<div class="trip-empty"><div class="tei">🎉</div><p>所有人已平帳，無需轉帳！</p></div>';
     } else {
       sc.innerHTML = transfers.map(function(t){
         return '<div class="trip-settle-row">' +
           '<span class="tsr-from">'+t.from+'</span>' +
-          '<span class="tsr-arrow"> \u2192 </span>' +
+          '<span class="tsr-arrow"> → </span>' +
           '<span class="tsr-to">'+t.to+'</span>' +
           '<span class="tsr-amt">NT$ '+tripFmt(Math.round(t.amt))+'</span></div>';
       }).join('');
