@@ -4685,9 +4685,11 @@ function tripEditExpense(id) {
   document.querySelectorAll('.trip-exp-item').forEach(function(el){ el.classList.remove('editing'); });
   const rows = document.querySelectorAll('.trip-exp-item');
   rows.forEach(function(el){ if (el.dataset.id == id) el.classList.add('editing'); });
-  // scroll to form
-  const form = document.querySelector('.trip-add-exp');
-  if (form) form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  // scroll to button so user sees save button clearly
+  setTimeout(function(){
+    const btn = document.getElementById('tripAddBtn');
+    if (btn) btn.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }, 100);
 }
 
 function tripCancelEdit() {
@@ -4779,13 +4781,7 @@ function tripAddExpense() {
   const sm = document.getElementById('tripSplitMode');
   if (sm) { sm.value = 'equal'; tripSplitModeChange(); }
   renderTripMain();
-  // 儲存後自動跳到結算 tab 確保立即同步顯示
-  if (tripEditingId === null) {
-    const s2 = tripSessions[tripCurrentIdx];
-    if (s2 && s2.expenses.length > 0 && s2.members.length > 0) {
-      tripTab('result');
-    }
-  }
+  tripCalcResult(); // 每次儲存都確保結算同步
 }
 
 function tripDeleteExpense(id) {
